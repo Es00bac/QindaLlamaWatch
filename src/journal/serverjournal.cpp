@@ -12,6 +12,12 @@ constexpr qsizetype kMaxLogLines = 400;
 // Journal history replayed on connect: enough for the recent-request table
 // and the model's load facts after a long uptime, as in qinda-llm-top.
 constexpr int kBacklogLines = 1500;
+// AGENT-CONTRACT: matches the lines JournalParser takes ports and load facts
+// from (journalparser.cpp); widen both together.
+constexpr const char *kHistoryPattern =
+    "spawning server instance with name=|layers to GPU|model buffer size|llama_kv_cache: .*size"
+    "|n_cpu_moe|flash_attn|graph splits";
+constexpr const char *kFollowMarker = "@@follow";
 
 QVariantMap toMap(const CompletedRequest &r)
 {
@@ -48,16 +54,21 @@ void ServerJournal::configure(const QString &host, const QString &unit, bool use
     m_denied.clear();
     clear();
 
-    QStringList argv;
-    if (useSudo) {
-        // -n: fail at once instead of waiting on a password prompt.
-        argv << QStringLiteral("sudo") << QStringLiteral("-n");
-    }
-    argv << QStringLiteral("journalctl") << QStringLiteral("-u") << m_unit
-         << QStringLiteral("-b") << QStringLiteral("-o") << QStringLiteral("short-iso")
-         << QStringLiteral("--no-pager") << QStringLiteral("-n") << QString::number(kBacklogLines)
-         << QStringLiteral("-f");
-    m_stream.start(remoteCommand(m_host, argv));
+    // -n: fail at once instead of waiting on a password prompt.
+    const QString journalctl = (useSudo ? QStringLiteral("sudo -n journalctl") : QStringLiteral("journalctl"))
+        + QStringLiteral(" -u ") + shellQuote(m_unit) + QStringLiteral(" -b -o short-iso --no-pager");
+    // AGENT-NOTE: two phases in one session. The router logs "spawning server
+    // instance with name=<model> on port <port>" once, when the model loads;
+    // on a server up for hours that line is far outside the replayed
+    // backlog, and without it no "[port]" tag resolves to a model name. So
+    // first the whole boot is filtered on the host (journalctl --grep) for
+    // just the spawn and load-fact lines, then the marker, then the usual
+    // backlog and follow. takeLines() feeds phase one to the parser only.
+    const QString script = journalctl + QStringLiteral(" -g ") + shellQuote(QLatin1String(kHistoryPattern))
+        + QStringLiteral("; echo ") + QLatin1String(kFollowMarker)
+        + QStringLiteral("; exec ") + journalctl + QStringLiteral(" -n ") + QString::number(kBacklogLines)
+        + QStringLiteral(" -f");
+    m_stream.start(remoteCommand(m_host, {QStringLiteral("sh"), QStringLiteral("-c"), script}));
     Q_EMIT stateChanged();
 }
 
@@ -127,6 +138,7 @@ QVariantMap ServerJournal::facts() const
 void ServerJournal::clear()
 {
     m_parser.reset();
+    m_following = false;
     m_requests.clear();
     m_log.clear();
     Q_EMIT requestsChanged();
@@ -155,6 +167,16 @@ void ServerJournal::takeLines(const QStringList &lines)
     for (const QString &line : lines) {
         if (line.startsWith(QLatin1String("-- "))) {
             continue;                         // "-- No entries --", "-- Boot ... --"
+        }
+        if (!m_following) {
+            // Phase one (see configure): history for the parser only; it
+            // holds no timing lines, and the log view shows the real tail.
+            if (line == QLatin1String(kFollowMarker)) {
+                m_following = true;
+            } else {
+                static_cast<void>(m_parser.feed(line));
+            }
+            continue;
         }
         m_log.append(line);
         if (std::optional<CompletedRequest> request = m_parser.feed(line)) {

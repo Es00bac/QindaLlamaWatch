@@ -69,6 +69,8 @@ private:
     QVariantList m_requests;
     QStringList m_log;
     QString m_denied;
+    // False while the grep-filtered boot history (phase one) is arriving.
+    bool m_following = false;
 };
 
 } // namespace QindaLlamaWatch
