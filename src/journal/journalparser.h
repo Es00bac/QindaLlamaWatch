@@ -12,6 +12,7 @@
 #include <QString>
 
 #include <optional>
+#include <utility>
 
 namespace QindaLlamaWatch {
 
@@ -26,6 +27,15 @@ struct CompletedRequest final {
     double genTps = 0;
 };
 
+// A model instance that exited with a non-zero status. The router respawns
+// it, so from the API this looks like a model briefly reloading.
+struct InstanceCrash final {
+    QString when;          // HH:MM:SS of the error line, else of the exit line
+    QString model;
+    int status = 0;
+    QString reason;        // what() text, else the exception type, else "exit status N"
+};
+
 class JournalParser final
 {
 public:
@@ -37,10 +47,22 @@ public:
     // "spawning server instance" line clears them (a new model instance).
     [[nodiscard]] const QHash<QString, QString> &facts() const { return m_facts; }
 
+    // The crash the last feed() completed, if any; cleared by the call.
+    [[nodiscard]] std::optional<InstanceCrash> takeCrash() { return std::exchange(m_crash, std::nullopt); }
+
     void reset();
 
 private:
+    struct LastError {
+        QString when;
+        QString text;
+        bool fromWhat = false;             // what() text beats the exception type
+    };
+
     QHash<QString, QString> m_ports;       // router port -> model name
+    QHash<QString, QString> m_modelPort;   // model name -> its current port
+    QHash<QString, LastError> m_lastError; // router port -> its last fatal error
+    std::optional<InstanceCrash> m_crash;
     QHash<QString, QString> m_facts;
     std::optional<CompletedRequest> m_pending;
 };

@@ -46,6 +46,29 @@ const QRegularExpression &spawn()
     return rx;
 }
 
+// "run: instance name=ornith exited with status 1" (router, untagged)
+const QRegularExpression &instanceExit()
+{
+    static const QRegularExpression rx(
+        QStringLiteral(R"(instance name=(\S+) exited with status (-?\d+))"));
+    return rx;
+}
+
+// A child's fatal error, tagged "[port]": the C++ runtime prints the
+// exception type, then its what() text, then the instance exits.
+const QRegularExpression &terminateType()
+{
+    static const QRegularExpression rx(
+        QStringLiteral(R"(terminate called after throwing an instance of '([^']+)')"));
+    return rx;
+}
+
+const QRegularExpression &whatText()
+{
+    static const QRegularExpression rx(QStringLiteral(R"(what\(\):\s*(.+)$)"));
+    return rx;
+}
+
 struct Fact {
     const char *key;
     QRegularExpression rx;
@@ -70,8 +93,11 @@ const std::array<Fact, 7> &loadFacts()
 void JournalParser::reset()
 {
     m_ports.clear();
+    m_modelPort.clear();
+    m_lastError.clear();
     m_facts.clear();
     m_pending.reset();
+    m_crash.reset();
 }
 
 std::optional<CompletedRequest> JournalParser::feed(const QString &line)
@@ -83,12 +109,42 @@ std::optional<CompletedRequest> JournalParser::feed(const QString &line)
 
     if (const QRegularExpressionMatch m = spawn().match(message); m.hasMatch()) {
         m_ports.insert(m.captured(2), m.captured(1));
+        m_modelPort.insert(m.captured(1), m.captured(2));
         m_facts.clear();                  // a new instance: forget the old one's facts
         return std::nullopt;
     }
+    if (const QRegularExpressionMatch m = instanceExit().match(message); m.hasMatch()) {
+        const QString exited = m.captured(1);
+        const int status = m.captured(2).toInt();
+        const LastError error = m_lastError.take(m_modelPort.value(exited));
+        // Status 0 is an unload, a restart of the service or a model switch.
+        if (status != 0) {
+            InstanceCrash crash;
+            crash.when = error.when.isEmpty() ? when : error.when;
+            crash.model = exited;
+            crash.status = status;
+            crash.reason = error.text.isEmpty() ? QStringLiteral("exit status %1").arg(status) : error.text;
+            m_crash = crash;
+        }
+        return std::nullopt;
+    }
     QString model;
+    QString port;
     if (const QRegularExpressionMatch tag = childTag().match(message); tag.hasMatch()) {
-        model = m_ports.value(tag.captured(1));
+        port = tag.captured(1);
+        model = m_ports.value(port);
+    }
+    if (!port.isEmpty()) {
+        if (const QRegularExpressionMatch m = whatText().match(message); m.hasMatch()) {
+            m_lastError.insert(port, {when, m.captured(1).trimmed(), true});
+            return std::nullopt;
+        }
+        if (const QRegularExpressionMatch m = terminateType().match(message); m.hasMatch()) {
+            if (!m_lastError.value(port).fromWhat) {
+                m_lastError.insert(port, {when, m.captured(1), false});
+            }
+            return std::nullopt;
+        }
     }
 
     if (const QRegularExpressionMatch m = timingPrompt().match(line); m.hasMatch()) {

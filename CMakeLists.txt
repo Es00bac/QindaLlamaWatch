@@ -88,6 +88,8 @@ qt_add_executable(qindallamawatch
     src/main.cpp
     src/app/action_catalog.cpp
     src/app/action_catalog.h
+    src/app/crashnotifier.cpp
+    src/app/crashnotifier.h
 )
 
 qt_add_qml_module(qindallamawatch
@@ -109,6 +111,7 @@ qt_add_qml_module(qindallamawatch
         qml/RequestsPanel.qml
         qml/LogView.qml
         qml/SettingsDialog.qml
+        qml/CrashBanner.qml
         qml/Format.js
 )
 

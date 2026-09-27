@@ -52,6 +52,11 @@ function kilo(n) {
     return (k >= 10 ? Math.round(k) : k.toFixed(1)) + "k"
 }
 
+// plural(3, "crash", "crashes") -> "3 crashes"
+function plural(n, one, many) {
+    return n + " " + (n === 1 ? one : many)
+}
+
 function celsius(n) {
     return known(n) ? n.toFixed(0) + "°C" : dash
 }

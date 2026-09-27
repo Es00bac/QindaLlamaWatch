@@ -19,6 +19,8 @@ Rectangle {
         property var facts: ({})
         property var requests: []
         property int requestTotal: 0
+        property int crashTotal: 0
+        property var crashes: []
         property var logLines: {
             var out = []
             for (var i = 0; i < 40; ++i)

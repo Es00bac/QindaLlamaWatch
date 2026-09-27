@@ -28,6 +28,10 @@ public:
         bool requests = false;
         bool facts = false;
         bool log = false;
+        bool crashes = false;
+        // Crashes seen live (phase two), oldest first: these alert the user.
+        // Crashes found in the boot history only update the count and list.
+        QVariantList newCrashes;
     };
 
     [[nodiscard]] Changes take(const QStringList &lines);
@@ -39,13 +43,19 @@ public:
     // Every request completed this boot, including those beyond the table.
     [[nodiscard]] int requestTotal() const { return m_requestTotal; }
     [[nodiscard]] const QStringList &log() const { return m_log; }
+    // Newest first, at most kMaxCrashes: {when, model, status, reason}.
+    [[nodiscard]] const QVariantList &crashes() const { return m_crashes; }
+    [[nodiscard]] int crashTotal() const { return m_crashTotal; }
     [[nodiscard]] QVariantMap facts() const;
 
     static constexpr qsizetype kMaxRequests = 200;
     static constexpr qsizetype kMaxLogLines = 400;
+    static constexpr qsizetype kMaxCrashes = 50;
 
 private:
-    bool feedParser(const QString &line);
+    // Feeds one line; records a completed request or crash. `live` marks a
+    // crash for alerting.
+    void feedParser(const QString &line, bool live, Changes &changes);
 
     JournalParser m_parser;
     // Phase-one lines. The backlog replays the tail of the same journal, and
@@ -53,7 +63,9 @@ private:
     QSet<QString> m_history;
     QVariantList m_requests;
     QStringList m_log;
+    QVariantList m_crashes;
     int m_requestTotal = 0;
+    int m_crashTotal = 0;
     bool m_following = false;
 };
 

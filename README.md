@@ -14,6 +14,7 @@ machine.
 | System | host CPU (+ per core), RAM (programs vs page cache), GPU busy/clocks/power/temps/fan, VRAM, GTT, the llama-server processes' CPU and memory, network; CPU/GPU and RAM/VRAM history | host sampler over ssh |
 | Recent requests | time, model, prompt tokens and read speed, output tokens and generation speed | server journal over ssh |
 | Log (Ctrl+2) | the tail of the service journal, following new lines | server journal over ssh |
+| Crash alert | a model instance dying (non-zero exit, e.g. `vk::DeviceLostError` after an amdgpu ring timeout): a red banner that stays until dismissed and a critical desktop notification; the Model panel and status bar count this boot's crashes | server journal over ssh |
 
 Server menu (also in the global menu): **Load Next Model** (Ctrl+M), **Unload
 Model** (Ctrl+U), **Restart Server** (Ctrl+Shift+R, asks first) — the
@@ -48,7 +49,8 @@ Defaults: server `http://qinda:8100`, ssh host `qinda`, unit
 `qinda-llm.service`, 1 s refresh. Change them in **File → Settings**
 (saved to `~/.config/QindaQt/qindallamawatch.conf`), or per run with
 `--server URL` and `--ssh HOST` (`--ssh local` samples this machine,
-`--ssh ""` turns host telemetry off).
+`--ssh ""` turns host telemetry off). `--simulate-crash` raises a fake
+crash alert (banner and desktop notification) three seconds after start.
 
 ## Build
 

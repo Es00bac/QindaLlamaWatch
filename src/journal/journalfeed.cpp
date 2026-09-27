@@ -20,6 +20,16 @@ QVariantMap toMap(const CompletedRequest &r)
     };
 }
 
+QVariantMap toMap(const InstanceCrash &c)
+{
+    return {
+        {QStringLiteral("when"), c.when},
+        {QStringLiteral("model"), c.model},
+        {QStringLiteral("status"), c.status},
+        {QStringLiteral("reason"), c.reason},
+    };
+}
+
 } // namespace
 
 void JournalFeed::reset()
@@ -28,7 +38,9 @@ void JournalFeed::reset()
     m_history.clear();
     m_requests.clear();
     m_log.clear();
+    m_crashes.clear();
     m_requestTotal = 0;
+    m_crashTotal = 0;
     m_following = false;
 }
 
@@ -42,15 +54,25 @@ QVariantMap JournalFeed::facts() const
     return map;
 }
 
-bool JournalFeed::feedParser(const QString &line)
+void JournalFeed::feedParser(const QString &line, bool live, Changes &changes)
 {
-    std::optional<CompletedRequest> request = m_parser.feed(line);
-    if (!request.has_value()) {
-        return false;
+    if (std::optional<CompletedRequest> request = m_parser.feed(line)) {
+        m_requests.prepend(toMap(*request));
+        ++m_requestTotal;
+        changes.requests = true;
     }
-    m_requests.prepend(toMap(*request));
-    ++m_requestTotal;
-    return true;
+    if (std::optional<InstanceCrash> crash = m_parser.takeCrash()) {
+        const QVariantMap map = toMap(*crash);
+        m_crashes.prepend(map);
+        if (m_crashes.size() > kMaxCrashes) {
+            m_crashes.resize(kMaxCrashes);
+        }
+        ++m_crashTotal;
+        changes.crashes = true;
+        if (live) {
+            changes.newCrashes.append(map);
+        }
+    }
 }
 
 JournalFeed::Changes JournalFeed::take(const QStringList &lines)
@@ -66,7 +88,7 @@ JournalFeed::Changes JournalFeed::take(const QStringList &lines)
                 m_following = true;
             } else {
                 m_history.insert(line);
-                changes.requests = feedParser(line) || changes.requests;
+                feedParser(line, false, changes);
             }
             continue;
         }
@@ -75,7 +97,9 @@ JournalFeed::Changes JournalFeed::take(const QStringList &lines)
         // AGENT-GUARD: a line phase one already parsed would add its request
         // twice, or re-open a prompt that was already paired.
         if (!m_history.contains(line)) {
-            changes.requests = feedParser(line) || changes.requests;
+            // AGENT-NOTE: "live" includes backlog lines newer than the
+            // history read, which is a window of well under a second.
+            feedParser(line, true, changes);
         }
     }
     if (m_log.size() > kMaxLogLines) {

@@ -33,6 +33,10 @@ class ServerJournal final : public QObject
     // Requests completed this boot; the table keeps only the newest 200.
     Q_PROPERTY(int requestTotal READ requestTotal NOTIFY requestsChanged FINAL)
     Q_PROPERTY(QVariantMap facts READ facts NOTIFY factsChanged FINAL)
+    // Model instances that died this boot (non-zero exit), newest first:
+    // {when, model, status, reason}; the list keeps 50, the total counts all.
+    Q_PROPERTY(QVariantList crashes READ crashes NOTIFY crashesChanged FINAL)
+    Q_PROPERTY(int crashTotal READ crashTotal NOTIFY crashesChanged FINAL)
     Q_PROPERTY(QStringList logLines READ logLines NOTIFY logChanged FINAL)
 
 public:
@@ -51,6 +55,8 @@ public:
     [[nodiscard]] QVariantList requests() const { return m_feed.requests(); }
     [[nodiscard]] int requestTotal() const { return m_feed.requestTotal(); }
     [[nodiscard]] QVariantMap facts() const { return m_feed.facts(); }
+    [[nodiscard]] QVariantList crashes() const { return m_feed.crashes(); }
+    [[nodiscard]] int crashTotal() const { return m_feed.crashTotal(); }
     [[nodiscard]] QStringList logLines() const { return m_feed.log(); }
 
 Q_SIGNALS:
@@ -58,6 +64,9 @@ Q_SIGNALS:
     void requestsChanged();
     void factsChanged();
     void logChanged();
+    void crashesChanged();
+    // A crash seen while following (not one read from the boot history).
+    void crashDetected(const QVariantMap &crash);
     void serviceActionFinished(bool ok, const QString &message);
 
 private:

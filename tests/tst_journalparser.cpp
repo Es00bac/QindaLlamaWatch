@@ -55,6 +55,46 @@ private Q_SLOTS:
         QVERIFY(request->model.isEmpty());
     }
 
+    void reportsAnInstanceCrashWithItsReason()
+    {
+        // The exact sequence qinda logged at 17:08 on 2026-09-27.
+        JournalParser parser;
+        static_cast<void>(parser.feed(line("0.01.170.424 I srv          load: spawning server instance with name=ornith on port 34003")));
+        QVERIFY(!parser.takeCrash().has_value());
+        const QString at = QStringLiteral("2026-09-27T17:08:21-06:00 qinda llama-server[1217]: ");
+        static_cast<void>(parser.feed(at + QStringLiteral("[34003] 19.45.810.546 E srv  update_slots: decode() failed: vk::Queue::submit: ErrorDeviceLost")));
+        static_cast<void>(parser.feed(at + QStringLiteral("[34003] terminate called after throwing an instance of 'vk::DeviceLostError'")));
+        static_cast<void>(parser.feed(at + QStringLiteral("[34003]   what():  vk::Queue::submit: ErrorDeviceLost")));
+        QVERIFY(!parser.takeCrash().has_value());
+        static_cast<void>(parser.feed(QStringLiteral("2026-09-27T17:08:26-06:00 qinda llama-server[1217]: 89.48.529.594 I srv           run: instance name=ornith exited with status 1")));
+        const std::optional<InstanceCrash> crash = parser.takeCrash();
+        QVERIFY(crash.has_value());
+        QCOMPARE(crash->model, QStringLiteral("ornith"));
+        QCOMPARE(crash->status, 1);
+        QCOMPARE(crash->when, QStringLiteral("17:08:21"));     // the error, not the exit
+        QCOMPARE(crash->reason, QStringLiteral("vk::Queue::submit: ErrorDeviceLost"));
+        QVERIFY(!parser.takeCrash().has_value());               // taken once
+    }
+
+    void cleanExitIsNotACrash()
+    {
+        JournalParser parser;
+        static_cast<void>(parser.feed(line("load: spawning server instance with name=ornith on port 46205")));
+        static_cast<void>(parser.feed(line("118.24.567.311 I srv           run: instance name=ornith exited with status 0")));
+        QVERIFY(!parser.takeCrash().has_value());
+    }
+
+    void crashWithoutErrorLinesReportsTheStatus()
+    {
+        JournalParser parser;
+        static_cast<void>(parser.feed(line("load: spawning server instance with name=ornith on port 46205")));
+        static_cast<void>(parser.feed(line("run: instance name=ornith exited with status 137")));
+        const std::optional<InstanceCrash> crash = parser.takeCrash();
+        QVERIFY(crash.has_value());
+        QCOMPARE(crash->reason, QStringLiteral("exit status 137"));
+        QCOMPARE(crash->when, QStringLiteral("15:54:10"));
+    }
+
     void collectsLoadFactsAndForgetsThemOnRespawn()
     {
         JournalParser parser;

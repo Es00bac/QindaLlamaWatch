@@ -5,7 +5,8 @@
 //   MonitorSettings         — where the server is (`monitorSettings` in QML)
 //   LlamaClient             — HTTP poller of the llama.cpp API (`llama`)
 //   HostProbe               — host CPU/GPU/RAM/VRAM over ssh (`hostProbe`)
-//   ServerJournal           — request timings and log over ssh (`serverJournal`)
+//   ServerJournal           — request timings, crashes and log over ssh (`serverJournal`)
+//   CrashNotifier           — a desktop notification per live model crash
 //   ApplicationCoordinator  — AppShell action/menu model (`coordinator`)
 //   Main.qml (Tk.AppWindow) — QindaTK dashboard
 //   composeFirstPartyMenuExport — the global menu; fail-closed, so the
@@ -16,6 +17,7 @@
 // before the window, the window (engine) before the collectors it binds to.
 
 #include "app/action_catalog.h"
+#include "app/crashnotifier.h"
 #include "host/hostprobe.h"
 #include "journal/serverjournal.h"
 #include "llama/llamaclient.h"
@@ -33,6 +35,7 @@
 #include <QQmlContext>
 #include <QQuickWindow>
 #include <QSurfaceFormat>
+#include <QTime>
 #include <QTimer>
 
 #include <cstdio>
@@ -80,6 +83,10 @@ int main(int argc, char **argv)
                       QStringLiteral("ssh destination of the server host for CPU/GPU/journal, "
                                      "\"local\" for this machine, \"\" to turn it off"),
                       QStringLiteral("host")});
+    // Verification seam for the crash alert (banner + desktop notification)
+    // without crashing a real server.
+    parser.addOption({QStringLiteral("simulate-crash"),
+                      QStringLiteral("Raise a fake model-crash alert 3 seconds after start")});
     // Verification seam: render the window, save the settled frame, exit.
     parser.addOption({QStringLiteral("screenshot"),
                       QStringLiteral("Save a window screenshot to PATH after a few samples and exit"),
@@ -101,6 +108,12 @@ int main(int argc, char **argv)
     QObject::connect(&settings, &MonitorSettings::changed, &llama,
                      [&settings, &llama, &hostProbe, &serverJournal] {
                          configureCollectors(settings, llama, hostProbe, serverJournal);
+                     });
+
+    App::CrashNotifier crashNotifier(QDBusConnection::sessionBus());
+    QObject::connect(&serverJournal, &ServerJournal::crashDetected, &crashNotifier,
+                     [&crashNotifier, &settings](const QVariantMap &crash) {
+                         crashNotifier.notify(crash, settings.sshHost());
                      });
 
     QindaQt::AppShell::ApplicationCoordinator coordinator;
@@ -145,6 +158,16 @@ int main(int argc, char **argv)
                 std::fprintf(stderr, "qindallamawatch: could not save screenshot to %s\n", qPrintable(path));
             }
             QCoreApplication::quit();
+        });
+    }
+
+    if (parser.isSet(QStringLiteral("simulate-crash"))) {
+        QTimer::singleShot(3000, &serverJournal, [&serverJournal] {
+            Q_EMIT serverJournal.crashDetected(
+                {{QStringLiteral("when"), QTime::currentTime().toString(QStringLiteral("HH:mm:ss"))},
+                 {QStringLiteral("model"), QStringLiteral("simulated")},
+                 {QStringLiteral("status"), 1},
+                 {QStringLiteral("reason"), QStringLiteral("simulated crash (--simulate-crash)")}});
         });
     }
 

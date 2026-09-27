@@ -96,6 +96,34 @@ private Q_SLOTS:
         QCOMPARE(feed.requests().size(), JournalFeed::kMaxRequests);
     }
 
+    void onlyLiveCrashesAlert()
+    {
+        JournalFeed feed;
+        const char *what = "[46205]   what():  vk::Queue::submit: ErrorDeviceLost";
+        const char *exit1 = "72.56.337.743 I srv           run: instance name=ornith exited with status 1";
+        const char *respawn = "load: spawning server instance with name=ornith on port 60051";
+        const char *what2 = "[60051]   what():  vk::Queue::submit: ErrorDeviceLost";
+
+        // A crash in the boot history is counted but raises no alert.
+        const JournalFeed::Changes history = feed.take({
+            line("15:38:39", kSpawn), line("16:49:35", what), line("16:51:34", exit1),
+            line("16:51:39", respawn), QString::fromLatin1(JournalFeed::kFollowMarker),
+            // The backlog replays those same lines: still no alert, no double count.
+            line("16:49:35", what), line("16:51:34", exit1)});
+        QVERIFY(history.crashes);
+        QVERIFY(history.newCrashes.isEmpty());
+        QCOMPARE(feed.crashTotal(), 1);
+
+        // A crash while following alerts once.
+        const JournalFeed::Changes live = feed.take({line("17:08:21", what2), line("17:08:26", exit1)});
+        QCOMPARE(live.newCrashes.size(), qsizetype(1));
+        QCOMPARE(live.newCrashes.first().toMap().value(QStringLiteral("when")).toString(),
+                 QStringLiteral("17:08:21"));
+        QCOMPARE(feed.crashTotal(), 2);
+        QCOMPARE(feed.crashes().first().toMap().value(QStringLiteral("reason")).toString(),
+                 QStringLiteral("vk::Queue::submit: ErrorDeviceLost"));
+    }
+
     void resetForgetsTheSession()
     {
         JournalFeed feed;

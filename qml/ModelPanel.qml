@@ -140,6 +140,18 @@ Tk.Panel {
                 text: panel.placement()
                 elide: Text.ElideRight
             }
+            Tk.Caption { text: qsTr("crashes") }
+            Tk.Mono {
+                objectName: "modelCrashes"
+                readonly property int total: panel.journal ? panel.journal.crashTotal : 0
+                readonly property var last: total > 0 ? panel.journal.crashes[0] : null
+                text: !panel.journal || panel.journal.state === "off" ? Format.dash
+                      : total === 0 ? qsTr("none this boot")
+                      : qsTr("%1 this boot").arg(total)
+                        + qsTr("  ·  last %1 %2: %3").arg(last.when).arg(last.model).arg(last.reason)
+                color: total > 0 ? Tk.Theme.color.danger : Tk.Theme.color.textMuted
+                elide: Text.ElideRight
+            }
             Tk.Caption { text: qsTr("sampling") }
             Tk.Mono {
                 text: panel.sampling()

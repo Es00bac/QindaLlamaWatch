@@ -16,7 +16,8 @@ constexpr int kBacklogLines = 1500;
 // of the backlog.
 constexpr const char *kHistoryPattern =
     "spawning server instance with name=|eval time =|layers to GPU|model buffer size"
-    "|llama_kv_cache: .*size|n_cpu_moe|flash_attn|graph splits";
+    "|llama_kv_cache: .*size|n_cpu_moe|flash_attn|graph splits"
+    "|exited with status|terminate called after throwing|what\\(\\):";
 } // namespace
 
 ServerJournal::ServerJournal(QObject *parent)
@@ -114,6 +115,7 @@ void ServerJournal::clear()
 {
     m_feed.reset();
     Q_EMIT requestsChanged();
+    Q_EMIT crashesChanged();
     Q_EMIT factsChanged();
     Q_EMIT logChanged();
     Q_EMIT stateChanged();
@@ -143,6 +145,12 @@ void ServerJournal::takeLines(const QStringList &lines)
     }
     if (changes.facts) {
         Q_EMIT factsChanged();
+    }
+    if (changes.crashes) {
+        Q_EMIT crashesChanged();
+    }
+    for (const QVariant &crash : changes.newCrashes) {
+        Q_EMIT crashDetected(crash.toMap());
     }
 }
 

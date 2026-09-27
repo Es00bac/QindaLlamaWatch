@@ -84,6 +84,12 @@ Rectangle {
         property string error: ""
         property string unit: "qinda-llm.service"
         property int requestTotal: 4
+        property int crashTotal: 3
+        property var crashes: [
+            { when: "17:28:17", model: "ornith", status: 1, reason: "vk::Queue::submit: ErrorDeviceLost" },
+            { when: "17:08:21", model: "ornith", status: 1, reason: "vk::Queue::submit: ErrorDeviceLost" },
+            { when: "16:49:35", model: "ornith", status: 1, reason: "vk::Queue::submit: ErrorDeviceLost" }
+        ]
         property var facts: ({ layers: "41/41", gpu_buf: "19876.2", cpu_buf: "412.5", kv: "2048", fa: "on" })
         property var requests: [
             { when: "15:54:10", model: "ornith", promptTokens: 18342, promptTps: 1210.4, promptSeconds: 15.2, genTokens: 1024, genTps: 43.9, genSeconds: 23.3 },
@@ -120,6 +126,14 @@ Rectangle {
             Tk.Label { text: "serving ornith"; accent: true }
             Tk.Spacer {}
             Tk.Segmented { small: true; model: ["Dashboard", "Log"]; currentIndex: 0 }
+        }
+
+        CrashBanner {
+            objectName: "crashBanner"
+            Tk.Flex.alignSelf: Tk.Flex.Stretch
+            Tk.Flex.shrink: 0
+            journal: fakeJournal
+            crash: fakeJournal.crashes[0]
         }
 
         DashboardView {

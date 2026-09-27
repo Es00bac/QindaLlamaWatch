@@ -2,6 +2,7 @@
 import QtQuick
 import QindaTK as Tk
 import QindaTK.QindaQt
+import "Format.js" as Format
 
 // The QindaLlamaWatch window: QindaTK chrome around the dashboard.
 //
@@ -141,6 +142,17 @@ Tk.AppWindow {
             tooltip: serverJournal.error
             onClicked: window.page = 1
         }
+        Tk.StatusField {
+            objectName: "crashCount"
+            visible: serverJournal.crashTotal > 0
+            iconName: "triangle-alert"
+            text: qsTr("%1 this boot").arg(Format.plural(serverJournal.crashTotal, qsTr("model crash"), qsTr("model crashes")))
+            tooltip: serverJournal.crashes.length > 0
+                     ? qsTr("Last: %1 at %2, %3").arg(serverJournal.crashes[0].model)
+                           .arg(serverJournal.crashes[0].when).arg(serverJournal.crashes[0].reason)
+                     : ""
+            onClicked: window.page = 1
+        }
         Tk.Spacer {}
         Tk.StatusField {
             actionable: false
@@ -150,19 +162,35 @@ Tk.AppWindow {
         }
     }
 
-    Item {
-        DashboardView {
-            anchors.fill: parent
-            visible: window.page === 0
-            client: llama
-            probe: hostProbe
+    Tk.Flex {
+        direction: Tk.Flex.Column
+        gap: 0
+
+        CrashBanner {
+            objectName: "crashBanner"
+            Tk.Flex.alignSelf: Tk.Flex.Stretch
+            Tk.Flex.shrink: 0
             journal: serverJournal
+            onShowLogRequested: window.page = 1
         }
-        LogView {
-            anchors.fill: parent
-            anchors.margins: Tk.Theme.space.sm
-            visible: window.page === 1
-            journal: serverJournal
+        Item {
+            Tk.Flex.grow: 1
+            Tk.Flex.basis: 0
+            Tk.Flex.alignSelf: Tk.Flex.Stretch
+
+            DashboardView {
+                anchors.fill: parent
+                visible: window.page === 0
+                client: llama
+                probe: hostProbe
+                journal: serverJournal
+            }
+            LogView {
+                anchors.fill: parent
+                anchors.margins: Tk.Theme.space.sm
+                visible: window.page === 1
+                journal: serverJournal
+            }
         }
     }
 
