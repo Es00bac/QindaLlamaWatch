@@ -17,7 +17,7 @@ Tk.Panel {
 
     actions: Tk.Badge {
         text: panel.journalState === "live"
-              ? qsTr("%1 since boot").arg(panel.journal.requests.length)
+              ? qsTr("%1 since boot").arg(panel.journal.requestTotal)
               : panel.journalState
         variant: panel.journalState === "live" ? "default"
                  : panel.journalState === "denied" || panel.journalState === "retrying" ? "warning" : "default"

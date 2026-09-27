@@ -59,6 +59,8 @@ add_library(llamawatch_core STATIC
     src/host/hostsampleparser.h
     src/host/hoststats.cpp
     src/host/hoststats.h
+    src/journal/journalfeed.cpp
+    src/journal/journalfeed.h
     src/journal/journalparser.cpp
     src/journal/journalparser.h
     src/journal/serverjournal.cpp

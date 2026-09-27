@@ -7,31 +7,16 @@
 namespace QindaLlamaWatch {
 
 namespace {
-constexpr qsizetype kMaxRequests = 200;
-constexpr qsizetype kMaxLogLines = 400;
-// Journal history replayed on connect: enough for the recent-request table
-// and the model's load facts after a long uptime, as in qinda-llm-top.
+// Journal history replayed on connect: the log view's tail and anything the
+// history filter below does not match, as in qinda-llm-top.
 constexpr int kBacklogLines = 1500;
-// AGENT-CONTRACT: matches the lines JournalParser takes ports and load facts
-// from (journalparser.cpp); widen both together.
+// AGENT-CONTRACT: matches every line JournalParser takes something from
+// (journalparser.cpp): model spawns, load facts and request timings. Widen
+// both together; a line the filter drops is invisible once it scrolls out
+// of the backlog.
 constexpr const char *kHistoryPattern =
-    "spawning server instance with name=|layers to GPU|model buffer size|llama_kv_cache: .*size"
-    "|n_cpu_moe|flash_attn|graph splits";
-constexpr const char *kFollowMarker = "@@follow";
-
-QVariantMap toMap(const CompletedRequest &r)
-{
-    return {
-        {QStringLiteral("when"), r.when},
-        {QStringLiteral("model"), r.model},
-        {QStringLiteral("promptTokens"), r.promptTokens},
-        {QStringLiteral("promptTps"), r.promptTps},
-        {QStringLiteral("promptSeconds"), r.promptMs / 1000.0},
-        {QStringLiteral("genTokens"), r.genTokens},
-        {QStringLiteral("genTps"), r.genTps},
-        {QStringLiteral("genSeconds"), r.genMs / 1000.0},
-    };
-}
+    "spawning server instance with name=|eval time =|layers to GPU|model buffer size"
+    "|llama_kv_cache: .*size|n_cpu_moe|flash_attn|graph splits";
 } // namespace
 
 ServerJournal::ServerJournal(QObject *parent)
@@ -58,14 +43,14 @@ void ServerJournal::configure(const QString &host, const QString &unit, bool use
     const QString journalctl = (useSudo ? QStringLiteral("sudo -n journalctl") : QStringLiteral("journalctl"))
         + QStringLiteral(" -u ") + shellQuote(m_unit) + QStringLiteral(" -b -o short-iso --no-pager");
     // AGENT-NOTE: two phases in one session. The router logs "spawning server
-    // instance with name=<model> on port <port>" once, when the model loads;
-    // on a server up for hours that line is far outside the replayed
-    // backlog, and without it no "[port]" tag resolves to a model name. So
-    // first the whole boot is filtered on the host (journalctl --grep) for
-    // just the spawn and load-fact lines, then the marker, then the usual
-    // backlog and follow. takeLines() feeds phase one to the parser only.
+    // instance with name=<model> on port <port>" once, when the model loads,
+    // and a long prompt read logs hundreds of progress lines; on a busy
+    // server both the spawn line and older request timings are far outside
+    // the replayed backlog. So first the whole boot is filtered on the host
+    // (journalctl --grep) for just the lines the parser reads, then the
+    // marker, then the usual backlog and follow. JournalFeed splits them.
     const QString script = journalctl + QStringLiteral(" -g ") + shellQuote(QLatin1String(kHistoryPattern))
-        + QStringLiteral("; echo ") + QLatin1String(kFollowMarker)
+        + QStringLiteral("; echo ") + QLatin1String(JournalFeed::kFollowMarker)
         + QStringLiteral("; exec ") + journalctl + QStringLiteral(" -n ") + QString::number(kBacklogLines)
         + QStringLiteral(" -f");
     m_stream.start(remoteCommand(m_host, {QStringLiteral("sh"), QStringLiteral("-c"), script}));
@@ -125,22 +110,9 @@ QString ServerJournal::error() const
     return m_denied.isEmpty() ? m_stream.lastError() : m_denied;
 }
 
-QVariantMap ServerJournal::facts() const
-{
-    QVariantMap map;
-    const QHash<QString, QString> &facts = m_parser.facts();
-    for (auto it = facts.cbegin(); it != facts.cend(); ++it) {
-        map.insert(it.key(), it.value());
-    }
-    return map;
-}
-
 void ServerJournal::clear()
 {
-    m_parser.reset();
-    m_following = false;
-    m_requests.clear();
-    m_log.clear();
+    m_feed.reset();
     Q_EMIT requestsChanged();
     Q_EMIT factsChanged();
     Q_EMIT logChanged();
@@ -162,40 +134,14 @@ void ServerJournal::takeError(const QString &line)
 
 void ServerJournal::takeLines(const QStringList &lines)
 {
-    bool requestsAdded = false;
-    const QHash<QString, QString> factsBefore = m_parser.facts();   // at most 7 entries
-    for (const QString &line : lines) {
-        if (line.startsWith(QLatin1String("-- "))) {
-            continue;                         // "-- No entries --", "-- Boot ... --"
-        }
-        if (!m_following) {
-            // Phase one (see configure): history for the parser only; it
-            // holds no timing lines, and the log view shows the real tail.
-            if (line == QLatin1String(kFollowMarker)) {
-                m_following = true;
-            } else {
-                static_cast<void>(m_parser.feed(line));
-            }
-            continue;
-        }
-        m_log.append(line);
-        if (std::optional<CompletedRequest> request = m_parser.feed(line)) {
-            m_requests.prepend(toMap(*request));
-            requestsAdded = true;
-        }
+    const JournalFeed::Changes changes = m_feed.take(lines);
+    if (changes.log) {
+        Q_EMIT logChanged();
     }
-    if (m_log.size() > kMaxLogLines) {
-        m_log.remove(0, m_log.size() - kMaxLogLines);
-    }
-    if (m_requests.size() > kMaxRequests) {
-        m_requests.resize(kMaxRequests);
-    }
-    Q_EMIT logChanged();
-    if (requestsAdded) {
+    if (changes.requests) {
         Q_EMIT requestsChanged();
     }
-    // Facts change rarely (a model load); do not re-emit a map per batch.
-    if (m_parser.facts() != factsBefore) {
+    if (changes.facts) {
         Q_EMIT factsChanged();
     }
 }

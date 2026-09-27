@@ -10,7 +10,7 @@
 #pragma once
 
 #include "common/streamprocess.h"
-#include "journal/journalparser.h"
+#include "journal/journalfeed.h"
 
 #include <QObject>
 #include <QStringList>
@@ -30,6 +30,8 @@ class ServerJournal final : public QObject
     // Newest first: {when, model, promptTokens, promptTps, promptSeconds,
     // genTokens, genTps, genSeconds}.
     Q_PROPERTY(QVariantList requests READ requests NOTIFY requestsChanged FINAL)
+    // Requests completed this boot; the table keeps only the newest 200.
+    Q_PROPERTY(int requestTotal READ requestTotal NOTIFY requestsChanged FINAL)
     Q_PROPERTY(QVariantMap facts READ facts NOTIFY factsChanged FINAL)
     Q_PROPERTY(QStringList logLines READ logLines NOTIFY logChanged FINAL)
 
@@ -46,9 +48,10 @@ public:
     [[nodiscard]] QString state() const;
     [[nodiscard]] QString error() const;
     [[nodiscard]] QString unit() const { return m_unit; }
-    [[nodiscard]] QVariantList requests() const { return m_requests; }
-    [[nodiscard]] QVariantMap facts() const;
-    [[nodiscard]] QStringList logLines() const { return m_log; }
+    [[nodiscard]] QVariantList requests() const { return m_feed.requests(); }
+    [[nodiscard]] int requestTotal() const { return m_feed.requestTotal(); }
+    [[nodiscard]] QVariantMap facts() const { return m_feed.facts(); }
+    [[nodiscard]] QStringList logLines() const { return m_feed.log(); }
 
 Q_SIGNALS:
     void stateChanged();
@@ -63,14 +66,10 @@ private:
     void clear();
 
     StreamProcess m_stream;
-    JournalParser m_parser;
+    JournalFeed m_feed;
     QString m_host;
     QString m_unit;
-    QVariantList m_requests;
-    QStringList m_log;
     QString m_denied;
-    // False while the grep-filtered boot history (phase one) is arriving.
-    bool m_following = false;
 };
 
 } // namespace QindaLlamaWatch
