@@ -12,9 +12,11 @@ HOMEPAGE="https://github.com/Es00bac/QindaQt"
 EGIT_REPO_URI="file:///home/cabewse/git/QindaLlamaWatch.git
 	file:///home/cabewse/work_SPaC3/QindaLlamaWatch
 	file:///home/cabewse/work_space/QindaLlamaWatch"
-# AGENT-NOTE: pin the reviewed release commit here, and bump the revision
-# with it; an unpinned git-r3 ebuild builds whatever the hub holds.
-# EGIT_COMMIT=""
+# AGENT-NOTE: pin the reviewed commit here and bump the revision with it;
+# an unpinned git-r3 ebuild builds whatever the hub holds.
+# cbacd612: first release; verified built, 16 unit tests passing, and run
+# live against qinda's qinda-llm.service (router, ornith).
+EGIT_COMMIT="cbacd6126310201cb0602d99c02246d263933a93"
 
 LICENSE="GPL-3+"
 SLOT="0"
