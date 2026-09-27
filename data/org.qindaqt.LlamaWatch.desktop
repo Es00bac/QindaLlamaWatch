@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=QindaLlamaWatch
+GenericName=LLM Server Monitor
+Comment=Watch a remote llama.cpp server: model, tokens per second, slots, CPU, GPU, RAM and VRAM
+Exec=qindallamawatch
+Icon=org.qindaqt.LlamaWatch
+Terminal=false
+Categories=Qt;System;Monitor;
+Keywords=llama;llama.cpp;llm;gguf;monitor;gpu;vram;tokens;
+StartupNotify=true

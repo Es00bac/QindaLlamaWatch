@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- QindaLlamaWatch: a monitor panel with a throughput trace and a token bar. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b3140"/>
+      <stop offset="1" stop-color="#171b24"/>
+    </linearGradient>
+    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="6" width="56" height="52" rx="10" fill="url(#bg)" stroke="#3d4557" stroke-width="1.5"/>
+  <path d="M10 38 L18 30 L24 34 L31 20 L38 27 L45 16 L54 24 L54 44 L10 44 Z" fill="url(#fill)"/>
+  <path d="M10 38 L18 30 L24 34 L31 20 L38 27 L45 16 L54 24" fill="none" stroke="#22d3ee"
+        stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="10" y="49" width="44" height="4" rx="2" fill="#3d4557"/>
+  <rect x="10" y="49" width="29" height="4" rx="2" fill="#ecc52f"/>
+</svg>
