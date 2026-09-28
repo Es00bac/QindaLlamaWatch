@@ -20,7 +20,9 @@ EGIT_REPO_URI="file:///home/cabewse/git/QindaLlamaWatch.git
 # so they no longer scroll out of the backlog during long prompt reads.
 # r2 (376f49d): model-crash alert (banner, desktop notification, counts);
 # steady prompt-reading rate between 2,048-token batches.
-EGIT_COMMIT="376f49d32a5bf7f0e7e7a8a36fbf5085d79e5d66"
+# r3 (2ed2c05): real prompt-reading progress from the journal
+# ("reading 57,494 of ~78k (74%) · ~3m 47s left").
+EGIT_COMMIT="2ed2c05e7e0529a77f4c759261a63d148984dd98"
 
 LICENSE="GPL-3+"
 SLOT="0"
