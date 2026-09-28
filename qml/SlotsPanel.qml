@@ -10,7 +10,29 @@ Tk.Panel {
     id: panel
 
     property var client
+    // ServerJournal: its promptProgress gives a prompt's real length and
+    // progress, which /slots does not report on the router build.
+    property var journal
     readonly property var slotList: panel.client ? panel.client.slotList : []
+    readonly property var progress: panel.journal && panel.journal.promptProgress
+                                    ? panel.journal.promptProgress : ({})
+
+    // "reading 30,322 of ~101k (30%) · ~9m 04s left", or the plain
+    // count until the journal has reported this task's first batch.
+    function readingText(slot) {
+        var p = panel.progress[String(slot.id)]
+        if (!p || p.task !== slot.task)
+            return qsTr("reading · %1 tokens").arg(Format.count(slot.promptProgress))
+        var text = qsTr("reading %1").arg(Format.count(p.tokens))
+        if (Format.known(p.total)) {
+            // decimal thousands: a token count, unlike the binary "128k" of a context size
+            text += qsTr(" of ~%1k (%2)").arg(Math.round(p.total / 1000)).arg(Format.percent(p.fraction * 100))
+            var rate = panel.client && panel.client.throughput ? panel.client.throughput.promptLive : 0
+            if (rate > 0 && p.total > p.tokens)
+                text += qsTr(" · ~%1 left").arg(Format.duration((p.total - p.tokens) / rate))
+        }
+        return text
+    }
 
     title: qsTr("Slots")
     iconName: "layers"
@@ -62,7 +84,7 @@ Tk.Panel {
                           // AGENT-NOTE: no "of N": the router's llama-server reports
                           // n_prompt_tokens as the end of the batch being read (always
                           // processed + 2048 on qinda), not the prompt's length.
-                          ? qsTr("reading prompt · %1 tokens read").arg(Format.count(slotRow.modelData.promptProgress))
+                          ? panel.readingText(slotRow.modelData)
                           : slotRow.phase === "generate"
                             ? qsTr("generating  %1 tokens").arg(Format.count(slotRow.modelData.decoded))
                             : qsTr("idle")

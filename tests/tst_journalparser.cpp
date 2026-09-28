@@ -95,6 +95,37 @@ private Q_SLOTS:
         QCOMPARE(crash->when, QStringLiteral("15:54:10"));
     }
 
+    void tracksPromptProgressUntilTheTaskEnds()
+    {
+        JournalParser parser;
+        static_cast<void>(parser.feed(line("load: spawning server instance with name=ornith on port 34279")));
+        static_cast<void>(parser.feed(line("[34279] 59.30.531.301 I slot print_timing: id  0 | task 40651 | prompt processing, n_tokens =   2048, progress = 0.03, t =  13.89 s / 147.46 tokens per second")));
+        static_cast<void>(parser.feed(line("[34279] 63.13.364.527 I slot print_timing: id  0 | task 40651 | prompt processing, n_tokens =  30322, progress = 0.30, t = 238.0 s / 127.4 tokens per second")));
+        QCOMPARE(parser.progress().size(), qsizetype(1));
+        const PromptProgress p = parser.progress().value(0);
+        QCOMPARE(p.task, 40651LL);
+        QCOMPARE(p.tokens, 30322LL);
+        QCOMPARE(p.fraction, 0.30);
+
+        // another task's release does not clear it; this task's does
+        static_cast<void>(parser.feed(line("[34279] 66.40.826.379 I slot      release: id  0 | task 42381 | stop processing: n_tokens = 1428, truncated = 0")));
+        QCOMPARE(parser.progress().size(), qsizetype(1));
+        static_cast<void>(parser.feed(line("[34279] 66.18.936.071 I slot      release: id  0 | task 40651 | stop processing: n_tokens = 48754, truncated = 0")));
+        QVERIFY(parser.progress().isEmpty());
+    }
+
+    void promptTimingLineEndsProgressAndStillCountsTheRequest()
+    {
+        JournalParser parser;
+        static_cast<void>(parser.feed(line("load: spawning server instance with name=ornith on port 46205")));
+        static_cast<void>(parser.feed(line("[46205] I slot print_timing: id  1 | task 58 | prompt processing, n_tokens = 96346, progress = 0.98, t = 1000 s / 96 tokens per second")));
+        static_cast<void>(parser.feed(line("[46205] 1.34.800.603 I slot print_timing: id  1 | task 58 | prompt eval time = 1043350.89 ms / 98391 tokens (   10.60 ms per token,    94.30 tokens per second)")));
+        QVERIFY(parser.progress().isEmpty());
+        const auto request = parser.feed(line("[46205] 1.34.800.606 I slot print_timing: id  1 | task 58 |        eval time =   36023.24 ms /   628 tokens (   57.45 ms per token,    17.41 tokens per second)"));
+        QVERIFY(request.has_value());
+        QCOMPARE(request->promptTokens, 98391LL);
+    }
+
     void collectsLoadFactsAndForgetsThemOnRespawn()
     {
         JournalParser parser;

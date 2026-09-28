@@ -29,7 +29,7 @@ struct SlotView final {
 
 [[nodiscard]] SlotView slotFromJson(const QVariantMap &slot);
 
-// AGENT-CONTRACT: keys read by qml/SlotsPanel.qml: id, busy, phase
+// AGENT-CONTRACT: keys read by qml/SlotsPanel.qml: id, task, busy, phase
 // ("prompt"/"generate"/"idle"), promptTokens, promptProgress (cached+done),
 // decoded, ctx, used.
 [[nodiscard]] QVariantMap slotToQml(const SlotView &slot);
@@ -59,6 +59,9 @@ private:
         double promptSince = 0;    // when promptDone last advanced (or the task was first seen)
         double promptRate = 0;     // tokens/s over the last advance
         double promptGap = 0;      // seconds the last advance took
+        // False when the task was first seen mid-read: the first advance
+        // then covers only part of a batch and would overstate the rate.
+        bool promptTimed = false;
     };
     QHash<int, Track> m_tracks;
 };

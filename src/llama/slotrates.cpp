@@ -35,6 +35,7 @@ QVariantMap slotToQml(const SlotView &slot)
     }
     return {
         {QStringLiteral("id"), slot.id},
+        {QStringLiteral("task"), slot.task},
         {QStringLiteral("busy"), slot.busy},
         {QStringLiteral("phase"), phase},
         {QStringLiteral("promptTokens"), slot.promptTokens},
@@ -56,6 +57,7 @@ SlotRates::Rates SlotRates::update(const QList<SlotView> &views, double nowSecon
         next.decoded = slot.decoded;
         next.t = nowSeconds;
         next.promptSince = nowSeconds;
+        next.promptTimed = slot.promptDone == 0;
         // AGENT-GUARD: only the same task counts. A new task resets the
         // counters to zero, and comparing across tasks would report the
         // previous task's whole output as one poll's worth of speed.
@@ -63,16 +65,22 @@ SlotRates::Rates SlotRates::update(const QList<SlotView> &views, double nowSecon
             next.promptSince = it->promptSince;
             next.promptRate = it->promptRate;
             next.promptGap = it->promptGap;
+            next.promptTimed = it->promptTimed;
             if (slot.busy) {
                 const double dt = std::max(nowSeconds - it->t, 1e-3);
                 rates.generate += double(std::max<qint64>(0, slot.decoded - it->decoded)) / dt;
             }
             if (slot.promptDone > it->promptDone) {
                 // A batch completed: its tokens over the time since the
-                // previous completion (or since the task was first seen).
+                // previous completion (or since the task started). The first
+                // advance of a task first seen mid-read is only a partial
+                // interval, so it starts the clock without giving a rate.
                 const double gap = std::max(nowSeconds - it->promptSince, 1e-3);
-                next.promptRate = double(slot.promptDone - it->promptDone) / gap;
-                next.promptGap = gap;
+                if (it->promptTimed) {
+                    next.promptRate = double(slot.promptDone - it->promptDone) / gap;
+                    next.promptGap = gap;
+                }
+                next.promptTimed = true;
                 next.promptSince = nowSeconds;
             }
             const bool reading = slot.busy && slot.decoded == 0;

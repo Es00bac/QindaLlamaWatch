@@ -38,7 +38,7 @@ Rectangle {
         property var slotList: [
             { id: 0, busy: true, phase: "generate", promptTokens: 18342, promptProgress: 18342,
               decoded: 412 + root.tick * 48, ctx: 65536, used: 18754 + root.tick * 48 },
-            { id: 1, busy: root.tick % 6 < 3, phase: root.tick % 6 < 3 ? "prompt" : "idle",
+            { id: 1, task: 40651, busy: root.tick % 6 < 3, phase: root.tick % 6 < 3 ? "prompt" : "idle",
               promptTokens: 9120, promptProgress: 2048 + (root.tick % 3) * 2400, decoded: 0,
               ctx: 65536, used: 9120 }
         ]
@@ -85,6 +85,7 @@ Rectangle {
         property string unit: "qinda-llm.service"
         property int requestTotal: 4
         property int crashTotal: 3
+        property var promptProgress: ({ "1": { task: 40651, tokens: 30322, fraction: 0.30, total: 101073, when: "18:40:15" } })
         property var crashes: [
             { when: "17:28:17", model: "ornith", status: 1, reason: "vk::Queue::submit: ErrorDeviceLost" },
             { when: "17:08:21", model: "ornith", status: 1, reason: "vk::Queue::submit: ErrorDeviceLost" },

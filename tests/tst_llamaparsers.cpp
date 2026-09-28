@@ -77,9 +77,20 @@ private Q_SLOTS:
         slot.task = 40651;
         slot.busy = true;
         slot.promptDone = 30840;
-        static_cast<void>(rates.update({slot}, 100.0));        // first sight of the task
+        static_cast<void>(rates.update({slot}, 100.0));        // first sight: already mid-read
         QCOMPARE(rates.update({slot}, 101.0).prompt, 0.0);      // nothing measured yet
 
+        // The first advance covers only the part of a batch since first
+        // sight (5 s of a 15 s batch here): it starts the clock, no rate.
+        slot.promptDone += 2048;
+        QCOMPARE(rates.update({slot}, 105.0).prompt, 0.0);
+        slot.promptDone += 2048;
+        QCOMPARE(rates.update({slot}, 115.0).prompt, 2048.0 / 10.0);
+        slot.promptDone -= 2048;                                // (rewind for the checks below)
+        rates.reset();
+        static_cast<void>(rates.update({slot}, 90.0));
+        slot.promptDone += 2048;
+        static_cast<void>(rates.update({slot}, 100.0));        // clock started
         slot.promptDone += 2048;
         QCOMPARE(rates.update({slot}, 115.0).prompt, 2048.0 / 15.0);
         // no batch completed in the next polls: the rate is held, not 0

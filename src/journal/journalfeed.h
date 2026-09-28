@@ -29,6 +29,7 @@ public:
         bool facts = false;
         bool log = false;
         bool crashes = false;
+        bool progress = false;
         // Crashes seen live (phase two), oldest first: these alert the user.
         // Crashes found in the boot history only update the count and list.
         QVariantList newCrashes;
@@ -47,6 +48,10 @@ public:
     [[nodiscard]] const QVariantList &crashes() const { return m_crashes; }
     [[nodiscard]] int crashTotal() const { return m_crashTotal; }
     [[nodiscard]] QVariantMap facts() const;
+    // AGENT-CONTRACT: read by qml/SlotsPanel.qml. Slot id (as a string) ->
+    // {task, tokens, fraction, total (tokens / fraction, estimated), when};
+    // the panel uses an entry only when its task matches the slot's id_task.
+    [[nodiscard]] QVariantMap progress() const;
 
     static constexpr qsizetype kMaxRequests = 200;
     static constexpr qsizetype kMaxLogLines = 400;

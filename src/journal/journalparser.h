@@ -36,6 +36,17 @@ struct InstanceCrash final {
     QString reason;        // what() text, else the exception type, else "exit status N"
 };
 
+// A prompt being read, from llama-server's per-batch progress line:
+// "id  0 | task 40651 | prompt processing, n_tokens = 30322, progress = 0.30, ...".
+// /slots cannot give this: on the router build its n_prompt_tokens is the end
+// of the batch being read, not the prompt's length.
+struct PromptProgress final {
+    qint64 task = -1;
+    qint64 tokens = 0;      // prompt tokens in the slot so far
+    double fraction = 0;    // 0..1, logged with two decimals
+    QString when;
+};
+
 class JournalParser final
 {
 public:
@@ -46,6 +57,10 @@ public:
     // gpu_buf, cpu_buf, kv (MiB), n_cpu_moe, fa, graph_splits. A new
     // "spawning server instance" line clears them (a new model instance).
     [[nodiscard]] const QHash<QString, QString> &facts() const { return m_facts; }
+
+    // Prompt reads in progress, by slot id; an entry goes when its task's
+    // prompt timing or release line arrives, or a new instance spawns.
+    [[nodiscard]] const QHash<int, PromptProgress> &progress() const { return m_progress; }
 
     // The crash the last feed() completed, if any; cleared by the call.
     [[nodiscard]] std::optional<InstanceCrash> takeCrash() { return std::exchange(m_crash, std::nullopt); }
@@ -63,6 +78,7 @@ private:
     QHash<QString, QString> m_modelPort;   // model name -> its current port
     QHash<QString, LastError> m_lastError; // router port -> its last fatal error
     std::optional<InstanceCrash> m_crash;
+    QHash<int, PromptProgress> m_progress;
     QHash<QString, QString> m_facts;
     std::optional<CompletedRequest> m_pending;
 };

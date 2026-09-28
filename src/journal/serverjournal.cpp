@@ -116,6 +116,7 @@ void ServerJournal::clear()
     m_feed.reset();
     Q_EMIT requestsChanged();
     Q_EMIT crashesChanged();
+    Q_EMIT promptProgressChanged();
     Q_EMIT factsChanged();
     Q_EMIT logChanged();
     Q_EMIT stateChanged();
@@ -148,6 +149,9 @@ void ServerJournal::takeLines(const QStringList &lines)
     }
     if (changes.crashes) {
         Q_EMIT crashesChanged();
+    }
+    if (changes.progress) {
+        Q_EMIT promptProgressChanged();
     }
     for (const QVariant &crash : changes.newCrashes) {
         Q_EMIT crashDetected(crash.toMap());

@@ -124,6 +124,18 @@ private Q_SLOTS:
                  QStringLiteral("vk::Queue::submit: ErrorDeviceLost"));
     }
 
+    void progressEstimatesThePromptLength()
+    {
+        JournalFeed feed;
+        static_cast<void>(feed.take({line("15:38:39", kSpawn), QString::fromLatin1(JournalFeed::kFollowMarker)}));
+        const JournalFeed::Changes changes = feed.take({line("18:40:15",
+            "[46205] I slot print_timing: id  1 | task 40651 | prompt processing, n_tokens =  30322, progress = 0.30, t = 238.0 s / 127.4 tokens per second")});
+        QVERIFY(changes.progress);
+        const QVariantMap entry = feed.progress().value(QStringLiteral("1")).toMap();
+        QCOMPARE(entry.value(QStringLiteral("task")).toLongLong(), 40651LL);
+        QCOMPARE(entry.value(QStringLiteral("total")).toLongLong(), 101073LL);    // 30322 / 0.30
+    }
+
     void resetForgetsTheSession()
     {
         JournalFeed feed;

@@ -50,6 +50,7 @@ Tk.Scroll {
             SlotsPanel {
                 objectName: "slotsPanel"
                 client: view.client
+                journal: view.journal
                 Tk.Flex.basis: 320
                 Tk.Flex.grow: 2
                 Tk.Flex.minWidth: 0

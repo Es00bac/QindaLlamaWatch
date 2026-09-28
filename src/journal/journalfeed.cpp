@@ -44,6 +44,26 @@ void JournalFeed::reset()
     m_following = false;
 }
 
+QVariantMap JournalFeed::progress() const
+{
+    QVariantMap map;
+    const QHash<int, PromptProgress> &all = m_parser.progress();
+    for (auto it = all.cbegin(); it != all.cend(); ++it) {
+        const PromptProgress &p = it.value();
+        QVariantMap entry{{QStringLiteral("task"), p.task},
+                          {QStringLiteral("tokens"), p.tokens},
+                          {QStringLiteral("fraction"), p.fraction},
+                          {QStringLiteral("when"), p.when}};
+        // Two decimals: 0.03 could be 0.025-0.035, so the total is only an
+        // estimate, and none is given before the first 1 %.
+        if (p.fraction >= 0.01) {
+            entry.insert(QStringLiteral("total"), qint64(double(p.tokens) / p.fraction));
+        }
+        map.insert(QString::number(it.key()), entry);
+    }
+    return map;
+}
+
 QVariantMap JournalFeed::facts() const
 {
     QVariantMap map;
@@ -79,6 +99,15 @@ JournalFeed::Changes JournalFeed::take(const QStringList &lines)
 {
     Changes changes;
     const QHash<QString, QString> factsBefore = m_parser.facts();   // at most 7 entries
+    const qsizetype progressBefore = m_parser.progress().size();
+    const auto progressSum = [this] {
+        qint64 sum = 0;
+        for (const PromptProgress &p : m_parser.progress()) {
+            sum += p.task * 1000003 + p.tokens;
+        }
+        return sum;
+    };
+    const qint64 progressKey = progressSum();
     for (const QString &line : lines) {
         if (line.startsWith(QLatin1String("-- "))) {
             continue;                         // "-- No entries --", "-- Boot ... --"
@@ -109,6 +138,7 @@ JournalFeed::Changes JournalFeed::take(const QStringList &lines)
         m_requests.resize(kMaxRequests);
     }
     changes.facts = m_parser.facts() != factsBefore;
+    changes.progress = m_parser.progress().size() != progressBefore || progressSum() != progressKey;
     return changes;
 }
 

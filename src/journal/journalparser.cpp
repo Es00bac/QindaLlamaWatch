@@ -69,6 +69,22 @@ const QRegularExpression &whatText()
     return rx;
 }
 
+// "id  0 | task 40651 | prompt processing, n_tokens =   2048, progress = 0.03, t = ..."
+const QRegularExpression &promptProgress()
+{
+    static const QRegularExpression rx(QStringLiteral(
+        R"(id\s+(\d+) \| task (\d+) \| prompt processing, n_tokens =\s*(\d+), progress =\s*([\d.]+))"));
+    return rx;
+}
+
+// The end of a task in a slot: its prompt timing line, or its release.
+const QRegularExpression &slotTaskEnd()
+{
+    static const QRegularExpression rx(QStringLiteral(
+        R"(id\s+(\d+) \| task (\d+) \| (?:prompt eval time|stop processing))"));
+    return rx;
+}
+
 struct Fact {
     const char *key;
     QRegularExpression rx;
@@ -98,6 +114,7 @@ void JournalParser::reset()
     m_facts.clear();
     m_pending.reset();
     m_crash.reset();
+    m_progress.clear();
 }
 
 std::optional<CompletedRequest> JournalParser::feed(const QString &line)
@@ -111,6 +128,7 @@ std::optional<CompletedRequest> JournalParser::feed(const QString &line)
         m_ports.insert(m.captured(2), m.captured(1));
         m_modelPort.insert(m.captured(1), m.captured(2));
         m_facts.clear();                  // a new instance: forget the old one's facts
+        m_progress.clear();
         return std::nullopt;
     }
     if (const QRegularExpressionMatch m = instanceExit().match(message); m.hasMatch()) {
@@ -135,6 +153,22 @@ std::optional<CompletedRequest> JournalParser::feed(const QString &line)
         model = m_ports.value(port);
     }
     if (!port.isEmpty()) {
+        if (const QRegularExpressionMatch m = promptProgress().match(message); m.hasMatch()) {
+            PromptProgress progress;
+            progress.task = m.captured(2).toLongLong();
+            progress.tokens = m.captured(3).toLongLong();
+            progress.fraction = m.captured(4).toDouble();
+            progress.when = when;
+            m_progress.insert(m.captured(1).toInt(), progress);
+            return std::nullopt;
+        }
+        if (const QRegularExpressionMatch m = slotTaskEnd().match(message); m.hasMatch()) {
+            const int slot = m.captured(1).toInt();
+            if (m_progress.value(slot).task == m.captured(2).toLongLong()) {
+                m_progress.remove(slot);
+            }
+            // no return: the prompt eval line is also a timing line
+        }
         if (const QRegularExpressionMatch m = whatText().match(message); m.hasMatch()) {
             m_lastError.insert(port, {when, m.captured(1).trimmed(), true});
             return std::nullopt;
