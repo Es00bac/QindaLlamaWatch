@@ -50,15 +50,39 @@ SlotRates::Rates SlotRates::update(const QList<SlotView> &views, double nowSecon
     Rates rates;
     for (const SlotView &slot : views) {
         const auto it = m_tracks.constFind(slot.id);
+        Track next;
+        next.task = slot.task;
+        next.promptDone = slot.promptDone;
+        next.decoded = slot.decoded;
+        next.t = nowSeconds;
+        next.promptSince = nowSeconds;
         // AGENT-GUARD: only the same task counts. A new task resets the
         // counters to zero, and comparing across tasks would report the
         // previous task's whole output as one poll's worth of speed.
-        if (it != m_tracks.cend() && it->task == slot.task && slot.busy) {
-            const double dt = std::max(nowSeconds - it->t, 1e-3);
-            rates.prompt += double(std::max<qint64>(0, slot.promptDone - it->promptDone)) / dt;
-            rates.generate += double(std::max<qint64>(0, slot.decoded - it->decoded)) / dt;
+        if (it != m_tracks.cend() && it->task == slot.task) {
+            next.promptSince = it->promptSince;
+            next.promptRate = it->promptRate;
+            next.promptGap = it->promptGap;
+            if (slot.busy) {
+                const double dt = std::max(nowSeconds - it->t, 1e-3);
+                rates.generate += double(std::max<qint64>(0, slot.decoded - it->decoded)) / dt;
+            }
+            if (slot.promptDone > it->promptDone) {
+                // A batch completed: its tokens over the time since the
+                // previous completion (or since the task was first seen).
+                const double gap = std::max(nowSeconds - it->promptSince, 1e-3);
+                next.promptRate = double(slot.promptDone - it->promptDone) / gap;
+                next.promptGap = gap;
+                next.promptSince = nowSeconds;
+            }
+            const bool reading = slot.busy && slot.decoded == 0;
+            const bool stale = nowSeconds - next.promptSince
+                > std::max(kHoldFactor * next.promptGap, 5.0);
+            if (reading && next.promptRate > 0 && !stale) {
+                rates.prompt += next.promptRate;
+            }
         }
-        m_tracks.insert(slot.id, {slot.task, slot.promptDone, slot.decoded, nowSeconds});
+        m_tracks.insert(slot.id, next);
     }
     return rates;
 }

@@ -59,8 +59,10 @@ Tk.Panel {
                     Tk.Flex.minWidth: 0
                     elide: Text.ElideRight
                     text: slotRow.phase === "prompt"
-                          ? qsTr("reading prompt %1 / %2").arg(Format.count(slotRow.modelData.promptProgress))
-                                                          .arg(Format.count(slotRow.modelData.promptTokens))
+                          // AGENT-NOTE: no "of N": the router's llama-server reports
+                          // n_prompt_tokens as the end of the batch being read (always
+                          // processed + 2048 on qinda), not the prompt's length.
+                          ? qsTr("reading prompt · %1 tokens read").arg(Format.count(slotRow.modelData.promptProgress))
                           : slotRow.phase === "generate"
                             ? qsTr("generating  %1 tokens").arg(Format.count(slotRow.modelData.decoded))
                             : qsTr("idle")

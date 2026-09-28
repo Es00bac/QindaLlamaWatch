@@ -67,6 +67,47 @@ private Q_SLOTS:
         QCOMPARE(r.generate, 0.0);
     }
 
+    void promptRateIsHeldBetweenBatchCompletions()
+    {
+        // llama-server advances the processed count one 2,048-token batch at
+        // a time; qinda took ~15 s per batch at long context.
+        SlotRates rates;
+        SlotView slot;
+        slot.id = 1;
+        slot.task = 40651;
+        slot.busy = true;
+        slot.promptDone = 30840;
+        static_cast<void>(rates.update({slot}, 100.0));        // first sight of the task
+        QCOMPARE(rates.update({slot}, 101.0).prompt, 0.0);      // nothing measured yet
+
+        slot.promptDone += 2048;
+        QCOMPARE(rates.update({slot}, 115.0).prompt, 2048.0 / 15.0);
+        // no batch completed in the next polls: the rate is held, not 0
+        QCOMPARE(rates.update({slot}, 116.0).prompt, 2048.0 / 15.0);
+        QCOMPARE(rates.update({slot}, 129.0).prompt, 2048.0 / 15.0);
+
+        slot.promptDone += 2048;
+        QCOMPARE(rates.update({slot}, 131.0).prompt, 2048.0 / 16.0);
+
+        // generation started: prompt reading is over
+        slot.decoded = 3;
+        QCOMPARE(rates.update({slot}, 132.0).prompt, 0.0);
+    }
+
+    void heldPromptRateExpiresWhenReadingStalls()
+    {
+        SlotRates rates;
+        SlotView slot;
+        slot.id = 0;
+        slot.task = 7;
+        slot.busy = true;
+        static_cast<void>(rates.update({slot}, 0.0));
+        slot.promptDone = 2048;
+        QCOMPARE(rates.update({slot}, 10.0).prompt, 204.8);
+        QCOMPARE(rates.update({slot}, 39.0).prompt, 204.8);     // within 3 x 10 s
+        QCOMPARE(rates.update({slot}, 41.0).prompt, 0.0);       // stalled: dropped
+    }
+
     void quotesEveryRemoteArgument()
     {
         const RemoteCommand c = remoteCommand(QStringLiteral("qinda"),

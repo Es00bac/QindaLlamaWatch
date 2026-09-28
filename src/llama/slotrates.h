@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Live prompt and generation speed from consecutive /slots snapshots: the
-// tokens each busy slot advanced since the previous poll, over the time
-// between polls. Port of Collector._rates() in qinda-llm-top.
+// Live prompt and generation speed from consecutive /slots snapshots.
+// Generation advances every token, so it is measured poll to poll (as in
+// Collector._rates() in qinda-llm-top). Prompt reading is not: llama-server
+// advances n_prompt_tokens_processed once per logical batch (2,048 tokens,
+// ~15 s at long context on qinda), so it is measured jump to jump and the
+// last rate is held while the next batch is read.
 
 #pragma once
 
@@ -41,6 +44,10 @@ public:
 
     // `nowSeconds` is a monotonic clock reading of when the snapshot arrived.
     [[nodiscard]] Rates update(const QList<SlotView> &views, double nowSeconds);
+
+    // A held prompt rate is dropped once no batch has completed for this
+    // many times the previous batch's duration (a stalled or finished read).
+    static constexpr double kHoldFactor = 3.0;
     void reset() { m_tracks.clear(); }
 
 private:
@@ -49,6 +56,9 @@ private:
         qint64 promptDone = 0;
         qint64 decoded = 0;
         double t = 0;
+        double promptSince = 0;    // when promptDone last advanced (or the task was first seen)
+        double promptRate = 0;     // tokens/s over the last advance
+        double promptGap = 0;      // seconds the last advance took
     };
     QHash<int, Track> m_tracks;
 };
