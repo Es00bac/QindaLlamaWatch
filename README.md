@@ -20,6 +20,16 @@ Server menu (also in the global menu): **Load Next Model** (Ctrl+M), **Unload
 Model** (Ctrl+U), **Restart Server** (Ctrl+Shift+R, asks first) — the
 `m` / `u` / `r` keys of `qinda-llm-top`.
 
+## Screenshots
+
+The real QindaTK dashboard views rendered with the repository’s **sample collectors**: model state, throughput, slots, system graphs and request history. The values and crash notice below are fixture data.
+
+[![Dashboard preview — simulated monitoring data](docs/screenshots/dashboard-sample.png)](docs/screenshots/dashboard-sample.png)
+
+Dashboard preview — simulated monitoring data.
+
+[Capture notes](docs/screenshots/README.md).
+
 ## How it reaches the server
 
 * **HTTP** — `LlamaClient` polls the llama.cpp API (`/models`, then
